@@ -2,7 +2,9 @@ use utoipa::OpenApi;
 
 use crate::model::{Item, List};
 #[allow(clippy::wildcard_imports)]
-use crate::*;
+use crate::routes::item::*;
+#[allow(clippy::wildcard_imports)]
+use crate::routes::list::*;
 
 #[derive(OpenApi)]
 #[openapi(
