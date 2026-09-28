@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     Json,
     extract::{Path, State},
@@ -7,11 +5,11 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     db::{DeleteResult, ItemInsertResult, ItemUpdateResult, PatchItemParams},
     model::Item,
 };
@@ -32,9 +30,9 @@ use crate::{
 
 pub(crate) async fn get_item(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let item = crate::db::get_item(pg_pool.as_ref(), id).await;
+    let item = crate::db::get_item(&state.pool, id).await;
     item.map_or_else(
         |_| StatusCode::NOT_FOUND.into_response(),
         |item| (StatusCode::OK, Json(item)).into_response(),
@@ -66,7 +64,7 @@ pub(crate) struct CreateItemParams {
 
 pub(crate) async fn create_item(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(item): Json<CreateItemParams>,
 ) -> impl IntoResponse {
     let item = Item {
@@ -76,7 +74,7 @@ pub(crate) async fn create_item(
         pinned: false,
         checked: false,
     };
-    let res = crate::db::insert_item(pg_pool.as_ref(), item).await;
+    let res = crate::db::insert_item(&state.pool, item).await;
     match res {
         ItemInsertResult::Inserted => StatusCode::CREATED,
         ItemInsertResult::Duplicate => StatusCode::NO_CONTENT,
@@ -101,9 +99,9 @@ pub(crate) async fn create_item(
 
 pub(crate) async fn delete_item(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = crate::db::delete_item(pg_pool.as_ref(), id).await;
+    let res = crate::db::delete_item(&state.pool, id).await;
     match res {
         DeleteResult::Deleted => StatusCode::NO_CONTENT,
         DeleteResult::NotFound => StatusCode::NOT_FOUND,
@@ -129,10 +127,10 @@ pub(crate) async fn delete_item(
 
 pub(crate) async fn patch_item(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(item): Json<PatchItemParams>,
 ) -> impl IntoResponse {
-    let res = crate::db::update_item(pg_pool.as_ref(), id, item).await;
+    let res = crate::db::update_item(&state.pool, id, item).await;
     match res {
         ItemUpdateResult::Updated => StatusCode::NO_CONTENT,
         ItemUpdateResult::NotFound => StatusCode::NOT_FOUND,

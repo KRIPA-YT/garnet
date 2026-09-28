@@ -7,6 +7,7 @@ pub mod user;
 use std::sync::Arc;
 
 use axum::{Router, routing::get};
+use sqlx::PgPool;
 use utoipa::OpenApi as _;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -18,6 +19,12 @@ use crate::{
     },
 };
 
+pub(crate) type AppState = Arc<InnerAppState>;
+
+pub(crate) struct InnerAppState {
+    pub pool: PgPool,
+}
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -26,14 +33,15 @@ async fn main() {
     #[allow(clippy::expect_used)]
     let db_url = std::env::var("DATABASE_URL").expect("Need to set DATABASE_URL env variable");
     #[allow(clippy::expect_used)]
-    let pg_pool = db::establish_connection(&db_url)
+    let pool = db::establish_connection(&db_url)
         .await
         .expect("Could not connect to database");
-    let pg_pool = Arc::new(pg_pool);
+    let app_state = InnerAppState { pool };
+    let app_state = Arc::new(app_state);
 
     #[allow(clippy::expect_used)]
     sqlx::migrate!("./migrations")
-        .run(pg_pool.as_ref())
+        .run(&app_state.pool)
         .await
         .expect("Could not run migration!");
 
@@ -57,7 +65,7 @@ async fn main() {
                 .patch(patch_item),
         )
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .with_state(pg_pool);
+        .with_state(app_state);
 
     // run our app with hyper, listening globally on port 3000
     #[allow(clippy::expect_used)]

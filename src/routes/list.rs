@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     Json,
     extract::{Path, State},
@@ -7,11 +5,11 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
+    AppState,
     db::{DeleteResult, ListInsertResult, ListUpdateResult, PatchListParams},
     model::{Item, List},
 };
@@ -33,8 +31,8 @@ use crate::{
         )
     )
 )]
-pub(crate) async fn get_lists(State(pg_pool): State<Arc<PgPool>>) -> impl IntoResponse {
-    let lists = crate::db::get_lists(pg_pool.as_ref()).await;
+pub(crate) async fn get_lists(State(state): State<AppState>) -> impl IntoResponse {
+    let lists = crate::db::get_lists(&state.pool).await;
     lists.map_or_else(
         |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         |lists| Json(lists).into_response(),
@@ -56,9 +54,9 @@ pub(crate) async fn get_lists(State(pg_pool): State<Arc<PgPool>>) -> impl IntoRe
 
 pub(crate) async fn get_list(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let items = crate::db::get_items(pg_pool.as_ref(), id).await;
+    let items = crate::db::get_items(&state.pool, id).await;
     items.map_or_else(
         |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         |items| Json(items).into_response(),
@@ -66,7 +64,6 @@ pub(crate) async fn get_list(
 }
 
 #[derive(Deserialize, ToSchema)]
-
 pub(crate) struct CreateListParams {
     title: String,
 }
@@ -88,7 +85,7 @@ pub(crate) struct CreateListParams {
 
 pub(crate) async fn create_list(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(list): Json<CreateListParams>,
 ) -> impl IntoResponse {
     let list = List {
@@ -96,7 +93,7 @@ pub(crate) async fn create_list(
         title: list.title,
         pinned: false,
     };
-    let res = crate::db::insert_list(pg_pool.as_ref(), list).await;
+    let res = crate::db::insert_list(&state.pool, list).await;
     match res {
         ListInsertResult::Inserted => StatusCode::CREATED,
         ListInsertResult::Duplicate => StatusCode::NO_CONTENT,
@@ -120,9 +117,9 @@ pub(crate) async fn create_list(
 
 pub(crate) async fn delete_list(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = crate::db::delete_list(pg_pool.as_ref(), id).await;
+    let res = crate::db::delete_list(&state.pool, id).await;
     match res {
         DeleteResult::Deleted => StatusCode::NO_CONTENT,
         DeleteResult::NotFound => StatusCode::NOT_FOUND,
@@ -147,10 +144,10 @@ pub(crate) async fn delete_list(
 
 pub(crate) async fn patch_list(
     Path(id): Path<Uuid>,
-    State(pg_pool): State<Arc<PgPool>>,
+    State(state): State<AppState>,
     Json(list): Json<PatchListParams>,
 ) -> impl IntoResponse {
-    let res = crate::db::update_list(pg_pool.as_ref(), id, list).await;
+    let res = crate::db::update_list(&state.pool, id, list).await;
     match res {
         ListUpdateResult::Updated => StatusCode::NO_CONTENT,
         ListUpdateResult::NotFound => StatusCode::NOT_FOUND,
