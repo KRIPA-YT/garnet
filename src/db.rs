@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use sqlx::{PgPool, postgres::PgPoolOptions, query, query_as};
-use utoipa::IntoParams;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::model::{Item, List};
@@ -95,8 +95,7 @@ pub(crate) async fn delete_list(pool: &PgPool, id: Uuid) -> DeleteResult {
     }
 }
 
-#[derive(Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
+#[derive(Deserialize, ToSchema)]
 pub(crate) struct PatchListParams {
     title: Option<String>,
     pinned: Option<bool>,
@@ -127,19 +126,6 @@ pub(crate) async fn update_list(
     }
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/item/{id}",
-    tag = "Items",
-    params(
-        ("id" = Uuid, Path, description = "UUID of the item")
-    ),
-    responses(
-        (status = 200, description = "Item found", body = Item),
-        (status = 404, description = "Item not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
 pub(crate) async fn get_items(pool: &PgPool, list_id: Uuid) -> anyhow::Result<Vec<Item>> {
     let items = query_as!(
         Item,
@@ -237,8 +223,8 @@ pub(crate) async fn delete_item(pool: &PgPool, id: Uuid) -> DeleteResult {
     }
 }
 
-#[derive(Deserialize, IntoParams)]
-#[into_params(parameter_in=Query)]
+#[derive(Deserialize, ToSchema)]
+
 pub(crate) struct PatchItemParams {
     list_id: Option<Uuid>,
     title: Option<String>,

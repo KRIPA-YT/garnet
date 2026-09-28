@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
 };
 use serde::Deserialize;
 use sqlx::PgPool;
-use utoipa::{IntoParams, OpenApi as _};
+use utoipa::{OpenApi as _, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
 
@@ -116,8 +116,8 @@ async fn get_list(Path(id): Path<Uuid>, State(pg_pool): State<Arc<PgPool>>) -> i
     )
 }
 
-#[derive(Deserialize, IntoParams)]
-#[into_params(parameter_in=Query)]
+#[derive(Deserialize, ToSchema)]
+
 struct CreateListParams {
     title: String,
 }
@@ -128,8 +128,8 @@ struct CreateListParams {
     tag = "Lists",
     params(
         ("id" = Uuid, Path, description = "UUID for the new list"),
-        CreateListParams
     ),
+    request_body = CreateListParams,
     responses(
         (status = 201, description = "List created"),
         (status = 204, description = "List ID already exists"),
@@ -139,8 +139,8 @@ struct CreateListParams {
 
 async fn create_list(
     Path(id): Path<Uuid>,
-    Query(list): Query<CreateListParams>,
     State(pg_pool): State<Arc<PgPool>>,
+    Json(list): Json<CreateListParams>,
 ) -> impl IntoResponse {
     let list = List {
         id,
@@ -187,8 +187,8 @@ async fn delete_list(
     tag = "Lists",
     params(
         ("id" = Uuid, Path, description = "UUID of the list to update"),
-        PatchListParams
     ),
+    request_body = PatchListParams,
     responses(
         (status = 204, description = "List updated"),
         (status = 404, description = "List not found"),
@@ -198,8 +198,8 @@ async fn delete_list(
 
 async fn patch_list(
     Path(id): Path<Uuid>,
-    Query(list): Query<PatchListParams>,
     State(pg_pool): State<Arc<PgPool>>,
+    Json(list): Json<PatchListParams>,
 ) -> impl IntoResponse {
     let res = db::update_list(pg_pool.as_ref(), id, list).await;
     match res {
@@ -231,8 +231,8 @@ async fn get_item(Path(id): Path<Uuid>, State(pg_pool): State<Arc<PgPool>>) -> i
     )
 }
 
-#[derive(Deserialize, IntoParams)]
-#[into_params(parameter_in=Query)]
+#[derive(Deserialize, ToSchema)]
+
 struct CreateItemParams {
     list_id: Uuid,
     title: String,
@@ -244,8 +244,8 @@ struct CreateItemParams {
     tag = "Items",
     params(
         ("id" = Uuid, Path, description = "UUID for the new item"),
-        CreateItemParams
     ),
+    request_body = CreateItemParams,
     responses(
         (status = 201, description = "Item created"),
         (status = 204, description = "Item ID already exists"),
@@ -256,8 +256,8 @@ struct CreateItemParams {
 
 async fn create_item(
     Path(id): Path<Uuid>,
-    Query(item): Query<CreateItemParams>,
     State(pg_pool): State<Arc<PgPool>>,
+    Json(item): Json<CreateItemParams>,
 ) -> impl IntoResponse {
     let item = Item {
         id,
@@ -307,8 +307,8 @@ async fn delete_item(
     tag = "Items",
     params(
         ("id" = Uuid, Path, description = "UUID of the item to update"),
-        PatchItemParams
     ),
+    request_body = PatchItemParams,
     responses(
         (status = 204, description = "Item updated"),
         (status = 400, description = "Parent list does not exist"),
@@ -319,8 +319,8 @@ async fn delete_item(
 
 async fn patch_item(
     Path(id): Path<Uuid>,
-    Query(item): Query<PatchItemParams>,
     State(pg_pool): State<Arc<PgPool>>,
+    Json(item): Json<PatchItemParams>,
 ) -> impl IntoResponse {
     let res = db::update_item(pg_pool.as_ref(), id, item).await;
     match res {

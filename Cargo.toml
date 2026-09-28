@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["macros"] }
 dotenvy = "0.15.7"
 envy = "0.4.2"
 serde = { version = "1.0.229", features = ["derive"] }
