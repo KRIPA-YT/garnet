@@ -40,6 +40,12 @@ async fn main() {
         .expect("Could not connect to database");
     let pg_pool = Arc::new(pg_pool);
 
+    #[allow(clippy::expect_used)]
+    sqlx::migrate!("./migrations")
+        .run(pg_pool.as_ref())
+        .await
+        .expect("Could not run migration!");
+
     println!("Connected!");
     println!("Starting webapp...");
 
