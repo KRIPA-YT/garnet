@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod db;
 pub mod model;
 pub mod openapi;
@@ -6,7 +7,10 @@ pub mod user;
 
 use std::sync::Arc;
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use sqlx::PgPool;
 use utoipa::OpenApi as _;
 use utoipa_swagger_ui::SwaggerUi;
@@ -14,6 +18,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     openapi::ApiDoc,
     routes::{
+        auth::{login, refresh, register},
         item::{create_item, delete_item, get_item, patch_item},
         list::{create_list, delete_list, get_list, get_lists, patch_list},
     },
@@ -64,6 +69,9 @@ async fn main() {
                 .delete(delete_item)
                 .patch(patch_item),
         )
+        .route("/auth/register", post(register))
+        .route("/auth/login", post(login))
+        .route("/auth/refresh", post(refresh))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(app_state);
 
