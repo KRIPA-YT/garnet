@@ -12,7 +12,20 @@ pub(crate) enum PasswordError {
 pub(crate) struct Password(String);
 impl Password {
     pub(crate) fn new(password: String) -> Option<Self> {
-        Some(Self(password)) // TODO: Implement server side password verification logic
+        const MIN_LEN: usize = 12;
+        const MAX_LEN: usize = 128;
+
+        let len = password.chars().count();
+
+        if !(MIN_LEN..=MAX_LEN).contains(&len) {
+            return None;
+        }
+
+        if password.chars().any(char::is_control) {
+            return None;
+        }
+
+        Some(Self(password))
     }
 
     pub(crate) fn get(&self) -> &str {
