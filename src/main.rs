@@ -1,9 +1,11 @@
 pub mod auth;
 pub mod db;
+pub mod error;
 pub mod model;
 pub mod openapi;
 pub mod routes;
-pub mod user;
+pub mod sessions;
+pub mod users;
 
 use std::sync::Arc;
 
@@ -16,6 +18,7 @@ use utoipa::OpenApi as _;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
+    auth::service::AuthService,
     openapi::ApiDoc,
     routes::{
         auth::{login, refresh, register},
@@ -28,6 +31,7 @@ pub(crate) type AppState = Arc<InnerAppState>;
 
 pub(crate) struct InnerAppState {
     pub pool: PgPool,
+    pub auth: AuthService,
 }
 
 #[tokio::main]
@@ -41,8 +45,9 @@ async fn main() {
     let pool = db::establish_connection(&db_url)
         .await
         .expect("Could not connect to database");
-    let app_state = InnerAppState { pool };
-    let app_state = Arc::new(app_state);
+    let auth = AuthService::new(pool.clone());
+    let inner = InnerAppState { pool, auth };
+    let app_state = Arc::new(inner);
 
     #[allow(clippy::expect_used)]
     sqlx::migrate!("./migrations")

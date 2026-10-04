@@ -1,4 +1,13 @@
-use argon2::{Argon2, PasswordHasher};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier as _};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub(crate) enum PasswordError {
+    #[error("hash is invalid")]
+    InvalidHash,
+    #[error("verification task failed")]
+    TaskFailed,
+}
 
 pub(crate) struct Password(String);
 impl Password {
@@ -25,5 +34,20 @@ impl Password {
         .await
         .ok()?
         .ok()
+    }
+    pub(crate) async fn verify(&self, hash: String) -> Result<bool, PasswordError> {
+        let password = self.get().to_owned();
+        let password_hash = hash;
+
+        tokio::task::spawn_blocking(move || {
+            let parsed_hash =
+                PasswordHash::new(&password_hash).map_err(|_| PasswordError::InvalidHash)?;
+
+            Ok(Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok())
+        })
+        .await
+        .map_err(|_| PasswordError::TaskFailed)?
     }
 }
