@@ -23,6 +23,13 @@ pub(crate) struct Token<E: Expiry> {
 }
 
 impl Token<Unlimited> {
+    pub(crate) const fn unlimited(token: String) -> Self {
+        Self {
+            token,
+            expiry: Unlimited,
+        }
+    }
+
     pub(crate) fn random() -> Self {
         let mut rng = rng();
         let token = (0..32)

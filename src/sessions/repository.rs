@@ -1,5 +1,5 @@
-use chrono::{DateTime, Duration, Utc};
-use sqlx::{PgPool, postgres::types::PgInterval, query, query_as};
+use chrono::Duration;
+use sqlx::{PgPool, postgres::types::PgInterval, query};
 use uuid::Uuid;
 
 use crate::{
@@ -78,14 +78,9 @@ impl SessionRepository {
         user_id: &Uuid,
         refresh_token: &Token<E>,
     ) -> Result<TokenPair, AuthError> {
-        struct RefreshRow {
-            access_expires_at: DateTime<Utc>,
-            refresh_expires_at: DateTime<Utc>,
-        }
         let new_access = Token::random();
         let new_refresh = Token::random();
-        let row = query_as!(
-            RefreshRow,
+        let row = query!(
             r#"
             UPDATE sessions
             SET
@@ -118,5 +113,24 @@ impl SessionRepository {
             access: new_access.limited(row.access_expires_at),
             refresh: new_refresh.limited(row.refresh_expires_at),
         })
+    }
+
+    pub(crate) async fn logout<E: Expiry>(
+        &self,
+        refresh_token: &Token<E>,
+    ) -> Result<(), AuthError> {
+        query!(
+            r#"
+            UPDATE sessions
+            SET
+            revoked_at = now()
+            WHERE refresh_token_hash = $1
+        "#,
+            refresh_token.hash(),
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(AuthError::InvalidCredentials)?;
+        Ok(())
     }
 }

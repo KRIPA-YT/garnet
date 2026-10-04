@@ -70,7 +70,6 @@ impl AuthResponse {
         (status = 500, description = "Internal server error")
     )
 )]
-#[allow(clippy::result_large_err)]
 pub(crate) async fn register(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Basic>>,
@@ -113,7 +112,6 @@ pub(crate) struct LoginRequest {
         (status = 500, description = "Internal server error")
     )
 )]
-#[allow(clippy::result_large_err)]
 pub(crate) async fn login(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Basic>>,
@@ -158,7 +156,6 @@ pub(crate) struct RefreshQuery {
         (status = 500, description = "Internal server error"),
     )
 )]
-#[allow(clippy::result_large_err)]
 pub(crate) async fn refresh(
     State(app_state): State<AppState>,
     Query(query): Query<RefreshQuery>,
@@ -178,4 +175,33 @@ pub(crate) async fn refresh(
     let auth_response = AuthResponse::with_token_pair(&tokens);
 
     Ok((StatusCode::OK, Json(auth_response)).into_response())
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    tag = "Auth",
+    security(
+        ("bearer_auth" = [])
+    ),
+    responses(
+        (status = 204, description = "User logged out"),
+        (status = 404, description = "Not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub(crate) async fn logout(
+    State(state): State<AppState>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .auth
+        .logout(&Token::unlimited(authorization.token().to_owned()))
+        .await
+        .map_err(|err| match err {
+            AuthError::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(StatusCode::OK)
 }

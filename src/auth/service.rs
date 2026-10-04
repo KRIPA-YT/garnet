@@ -76,8 +76,11 @@ impl AuthService {
         access_token: &str,
     ) -> Result<AuthenticatedUser, AuthError>{todo!();}*/
 
-    pub(crate) async fn logout(&self, refresh_token: &str) -> Result<(), AuthError> {
-        todo!();
+    pub(crate) fn logout<E: Expiry>(
+        &self,
+        refresh_token: &Token<E>,
+    ) -> impl Future<Output = Result<(), AuthError>> {
+        self.sessions.logout(refresh_token)
     }
 
     pub(crate) const fn sessions(&self) -> &SessionRepository {
