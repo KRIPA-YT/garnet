@@ -17,7 +17,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    app::AppState,
     auth::{
         password::Password,
         token::{Token, TokenPair},

@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    app::AppState,
     auth::extractor::AuthenticatedUser,
     items::repository::{DeleteResult, ItemInsertResult, ItemUpdateResult, PatchItemParams},
     model::Item,

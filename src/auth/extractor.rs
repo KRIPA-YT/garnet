@@ -5,7 +5,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::{AppState, auth::token::Token};
+use crate::{app::AppState, auth::token::Token};
 
 pub(crate) struct AuthenticatedUser(pub Uuid);
 
