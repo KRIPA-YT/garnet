@@ -20,9 +20,9 @@ use crate::{
     },
 };
 
-pub(crate) type AppState = Arc<InnerAppState>;
+pub type AppState = Arc<InnerAppState>;
 
-pub(crate) struct InnerAppState {
+pub struct InnerAppState {
     pub auth: AuthService,
     pub items: ItemRepository,
     pub lists: ListRepository,

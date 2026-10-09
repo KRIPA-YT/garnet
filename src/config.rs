@@ -1,6 +1,6 @@
 use std::{env, net::SocketAddr};
 
-pub(crate) struct Config {
+pub struct Config {
     pub migration_database_url: String,
     pub app_database_url: String,
     pub listen_addr: SocketAddr,

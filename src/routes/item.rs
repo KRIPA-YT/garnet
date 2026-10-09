@@ -1,7 +1,6 @@
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
     response::IntoResponse,
 };
 use serde::Deserialize;
@@ -9,9 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    app::AppState,
-    auth::extractor::AuthenticatedUser,
-    items::repository::{DeleteResult, ItemInsertResult, ItemUpdateResult, PatchItemParams},
+    app::AppState, auth::extractor::AuthenticatedUser, items::repository::PatchItemParams,
     model::Item,
 };
 
@@ -37,11 +34,7 @@ pub(crate) async fn get_item(
     AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let item = state.items.get_item(&item_id, &user_id).await;
-    item.map_or_else(
-        |_| StatusCode::NOT_FOUND.into_response(),
-        |item| (StatusCode::OK, Json(item)).into_response(),
-    )
+    state.items.get_item(&item_id, &user_id).await.map(Json)
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -83,13 +76,7 @@ pub(crate) async fn create_item(
         pinned: false,
         checked: false,
     };
-    let res = state.items.insert_item(item, &user_id).await;
-    match res {
-        ItemInsertResult::Inserted => StatusCode::CREATED,
-        ItemInsertResult::Duplicate => StatusCode::NO_CONTENT,
-        ItemInsertResult::ListNotFound => StatusCode::BAD_REQUEST,
-        ItemInsertResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.items.insert_item(item, &user_id).await
 }
 
 #[utoipa::path(
@@ -114,12 +101,7 @@ pub(crate) async fn delete_item(
     AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = state.items.delete_item(&item_id, &user_id).await;
-    match res {
-        DeleteResult::Deleted => StatusCode::NO_CONTENT,
-        DeleteResult::NotFound => StatusCode::NOT_FOUND,
-        DeleteResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.items.delete_item(&item_id, &user_id).await
 }
 
 #[utoipa::path(
@@ -147,11 +129,5 @@ pub(crate) async fn patch_item(
     State(state): State<AppState>,
     Json(item): Json<PatchItemParams>,
 ) -> impl IntoResponse {
-    let res = state.items.update_item(&item_id, &user_id, item).await;
-    match res {
-        ItemUpdateResult::Updated => StatusCode::NO_CONTENT,
-        ItemUpdateResult::NotFound => StatusCode::NOT_FOUND,
-        ItemUpdateResult::ListNotFound => StatusCode::BAD_REQUEST,
-        ItemUpdateResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.items.update_item(&item_id, &user_id, item).await
 }
