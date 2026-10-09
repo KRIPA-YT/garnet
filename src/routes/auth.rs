@@ -1,8 +1,7 @@
 use axum::{
     Json,
     extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
 };
 use axum_extra::{
     TypedHeader,
@@ -22,7 +21,7 @@ use crate::{
         password::Password,
         token::{Token, TokenPair},
     },
-    error::auth::AuthError,
+    error::app::AppError,
     sessions::model::Session,
     users::model::{Discriminator, Email, User, Username},
 };
@@ -75,22 +74,19 @@ pub(crate) async fn register(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Basic>>,
     Json(payload): Json<RegisterRequest>,
-) -> Result<Response, StatusCode> {
-    let email = Email::new(authorization.username().to_string()).ok_or(StatusCode::BAD_REQUEST)?;
+) -> impl IntoResponse {
+    let email = Email::new(authorization.username().to_string()).ok_or(AppError::BadRequest)?;
     let password =
-        Password::new(authorization.password().to_string()).ok_or(StatusCode::BAD_REQUEST)?;
-    let discriminator = Discriminator::new(payload.discriminator).ok_or(StatusCode::BAD_REQUEST)?;
-    let username = Username::new(payload.username).ok_or(StatusCode::BAD_REQUEST)?;
+        Password::new(authorization.password().to_string()).ok_or(AppError::BadRequest)?;
+    let discriminator = Discriminator::new(payload.discriminator).ok_or(AppError::BadRequest)?;
+    let username = Username::new(payload.username).ok_or(AppError::BadRequest)?;
 
-    let user = state
+    state
         .auth
         .register(email, password, username, discriminator)
         .await
-        .map_err(|err| match err {
-            AuthError::Conflict => StatusCode::CONFLICT,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
-    Ok((StatusCode::CREATED, Json(user)).into_response())
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -117,22 +113,17 @@ pub(crate) async fn login(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Basic>>,
     Json(payload): Json<LoginRequest>,
-) -> Result<Response, StatusCode> {
-    let email = Email::new(authorization.username().to_string()).ok_or(StatusCode::BAD_REQUEST)?;
+) -> impl IntoResponse {
+    let email = Email::new(authorization.username().to_string()).ok_or(AppError::BadRequest)?;
     let password =
-        Password::new(authorization.password().to_string()).ok_or(StatusCode::BAD_REQUEST)?;
+        Password::new(authorization.password().to_string()).ok_or(AppError::BadRequest)?;
 
-    let tokens = state
+    state
         .auth
         .login(&email, &password, &payload.title)
         .await
-        .map_err(|err| match err {
-            AuthError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
-
-    let auth_response = AuthResponse::with_token_pair(&tokens);
-    Ok((StatusCode::OK, Json(auth_response)).into_response())
+        .map(|token_pair| Json(AuthResponse::with_token_pair(&token_pair)))
+        .map_err(AppError::from)
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -161,21 +152,16 @@ pub(crate) async fn refresh(
     State(app_state): State<AppState>,
     Query(query): Query<RefreshQuery>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
-) -> Result<Response, StatusCode> {
-    let tokens = app_state
+) -> impl IntoResponse {
+    app_state
         .auth
         .refresh(
             &query.user_id,
-            &Token::from_base64(authorization.token()).ok_or(StatusCode::BAD_REQUEST)?,
+            &Token::from_base64(authorization.token()).ok_or(AppError::BadRequest)?,
         )
         .await
-        .map_err(|err| match err {
-            AuthError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
-    let auth_response = AuthResponse::with_token_pair(&tokens);
-
-    Ok((StatusCode::OK, Json(auth_response)).into_response())
+        .map(|token_pair| Json(AuthResponse::with_token_pair(&token_pair)))
+        .map_err(AppError::from)
 }
 
 #[utoipa::path(
@@ -194,17 +180,11 @@ pub(crate) async fn refresh(
 pub(crate) async fn logout(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
-) -> Result<StatusCode, StatusCode> {
+) -> impl IntoResponse {
     state
         .auth
         .logout(&Token::unlimited(authorization.token().to_owned()))
         .await
-        .map_err(|err| match err {
-            AuthError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
-
-    Ok(StatusCode::OK)
 }
 
 #[utoipa::path(
