@@ -1,7 +1,6 @@
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
     response::IntoResponse,
 };
 use serde::Deserialize;
@@ -11,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     app::AppState,
     auth::extractor::AuthenticatedUser,
-    lists::repository::{DeleteResult, ListInsertResult, ListUpdateResult, PatchListParams},
+    lists::repository::PatchListParams,
     model::{Item, List},
 };
 
@@ -39,11 +38,7 @@ pub(crate) async fn get_lists(
     AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let lists = state.lists.get_lists(&user_id).await;
-    lists.map_or_else(
-        |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        |lists| Json(lists).into_response(),
-    )
+    state.lists.get_lists(&user_id).await.map(Json)
 }
 
 #[utoipa::path(
@@ -67,11 +62,7 @@ pub(crate) async fn get_list(
     AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let items = state.items.get_items(&list_id, &user_id).await;
-    items.map_or_else(
-        |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        |items| Json(items).into_response(),
-    )
+    state.items.get_items(&list_id, &user_id).await.map(Json)
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -108,12 +99,7 @@ pub(crate) async fn create_list(
         title: list.title,
         pinned: false,
     };
-    let res = state.lists.insert_list(list, &user_id).await;
-    match res {
-        ListInsertResult::Inserted => StatusCode::CREATED,
-        ListInsertResult::Duplicate => StatusCode::NO_CONTENT,
-        ListInsertResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.lists.insert_list(list, &user_id).await
 }
 
 #[utoipa::path(
@@ -138,12 +124,7 @@ pub(crate) async fn delete_list(
     AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = state.lists.delete_list(&list_id, &user_id).await;
-    match res {
-        DeleteResult::Deleted => StatusCode::NO_CONTENT,
-        DeleteResult::NotFound => StatusCode::NOT_FOUND,
-        DeleteResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.lists.delete_list(&list_id, &user_id).await
 }
 
 #[utoipa::path(
@@ -170,10 +151,5 @@ pub(crate) async fn patch_list(
     State(state): State<AppState>,
     Json(list): Json<PatchListParams>,
 ) -> impl IntoResponse {
-    let res = state.lists.update_list(&list_id, &user_id, &list).await;
-    match res {
-        ListUpdateResult::Updated => StatusCode::NO_CONTENT,
-        ListUpdateResult::NotFound => StatusCode::NOT_FOUND,
-        ListUpdateResult::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+    state.lists.update_list(&list_id, &user_id, &list).await
 }
