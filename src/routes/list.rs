@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    db::{DeleteResult, ListInsertResult, ListUpdateResult, PatchListParams},
+    auth::extractor::AuthenticatedUser,
+    lists::repository::{DeleteResult, ListInsertResult, ListUpdateResult, PatchListParams},
     model::{Item, List},
 };
 
@@ -19,6 +20,9 @@ use crate::{
     get,
     path = "/api/lists",
     tag = "Lists",
+    security(
+        ("bearer_auth" = [])
+    ),
     responses(
         (
             status = 200,
@@ -31,8 +35,11 @@ use crate::{
         )
     )
 )]
-pub(crate) async fn get_lists(State(state): State<AppState>) -> impl IntoResponse {
-    let lists = crate::db::get_lists(&state.pool).await;
+pub(crate) async fn get_lists(
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let lists = state.lists.get_lists(&user_id).await;
     lists.map_or_else(
         |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         |lists| Json(lists).into_response(),
@@ -43,6 +50,9 @@ pub(crate) async fn get_lists(State(state): State<AppState>) -> impl IntoRespons
     get,
     path = "/api/list/{id}",
     tag = "Lists",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "List UUID")
     ),
@@ -53,10 +63,11 @@ pub(crate) async fn get_lists(State(state): State<AppState>) -> impl IntoRespons
 )]
 
 pub(crate) async fn get_list(
-    Path(id): Path<Uuid>,
+    Path(list_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let items = crate::db::get_items(&state.pool, id).await;
+    let items = state.items.get_items(&list_id, &user_id).await;
     items.map_or_else(
         |_| StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         |items| Json(items).into_response(),
@@ -72,6 +83,9 @@ pub(crate) struct CreateListParams {
     put,
     path = "/api/list/{id}",
     tag = "Lists",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID for the new list"),
     ),
@@ -84,16 +98,17 @@ pub(crate) struct CreateListParams {
 )]
 
 pub(crate) async fn create_list(
-    Path(id): Path<Uuid>,
+    Path(list_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
     Json(list): Json<CreateListParams>,
 ) -> impl IntoResponse {
     let list = List {
-        id,
+        id: list_id,
         title: list.title,
         pinned: false,
     };
-    let res = crate::db::insert_list(&state.pool, list).await;
+    let res = state.lists.insert_list(list, &user_id).await;
     match res {
         ListInsertResult::Inserted => StatusCode::CREATED,
         ListInsertResult::Duplicate => StatusCode::NO_CONTENT,
@@ -105,6 +120,9 @@ pub(crate) async fn create_list(
     delete,
     path = "/api/list/{id}",
     tag = "Lists",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID of the list to delete")
     ),
@@ -116,10 +134,11 @@ pub(crate) async fn create_list(
 )]
 
 pub(crate) async fn delete_list(
-    Path(id): Path<Uuid>,
+    Path(list_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = crate::db::delete_list(&state.pool, id).await;
+    let res = state.lists.delete_list(&list_id, &user_id).await;
     match res {
         DeleteResult::Deleted => StatusCode::NO_CONTENT,
         DeleteResult::NotFound => StatusCode::NOT_FOUND,
@@ -131,6 +150,9 @@ pub(crate) async fn delete_list(
     patch,
     path = "/api/list/{id}",
     tag = "Lists",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID of the list to update"),
     ),
@@ -143,11 +165,12 @@ pub(crate) async fn delete_list(
 )]
 
 pub(crate) async fn patch_list(
-    Path(id): Path<Uuid>,
+    Path(list_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
     Json(list): Json<PatchListParams>,
 ) -> impl IntoResponse {
-    let res = crate::db::update_list(&state.pool, id, list).await;
+    let res = state.lists.update_list(&list_id, &user_id, &list).await;
     match res {
         ListUpdateResult::Updated => StatusCode::NO_CONTENT,
         ListUpdateResult::NotFound => StatusCode::NOT_FOUND,

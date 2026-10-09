@@ -1,7 +1,4 @@
-use chrono::{DateTime, Utc};
-use serde::Serialize;
-use sqlx::PgPool;
-use utoipa::ToSchema;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -19,6 +16,25 @@ pub(crate) struct UserLoginRow {
     pub password_hash: String,
 }
 
+pub(crate) trait UserTxExt<DB: sqlx::Database> {
+    async fn user_tx(&self, user_id: &Uuid) -> Result<Transaction<'_, DB>, sqlx::Error>;
+}
+
+impl UserTxExt<Postgres> for sqlx::Pool<Postgres> {
+    async fn user_tx(&self, user_id: &Uuid) -> Result<Transaction<'_, Postgres>, sqlx::Error> {
+        let mut tx = self.begin().await?;
+
+        sqlx::query!(
+            "SELECT set_config('app.user_id', $1, true)",
+            user_id.to_string()
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        Ok(tx)
+    }
+}
+
 impl UserRepository {
     pub(crate) const fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -31,14 +47,7 @@ impl UserRepository {
         username: Username,
         discriminator: Discriminator,
     ) -> Result<User, AuthError> {
-        #[derive(Serialize, ToSchema)]
-        struct UserResponse {
-            pub id: Uuid,
-            pub created_at: DateTime<Utc>,
-        }
-
-        let user = sqlx::query_as!(
-            UserResponse,
+        let row = sqlx::query!(
             r#"
                 INSERT INTO users (username, discriminator, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id, created_at
             "#,
@@ -46,25 +55,22 @@ impl UserRepository {
             &discriminator.get(),
             &email.get(),
             &password.hash().await.ok_or(AuthError::Internal)?
-        ).fetch_one(&self.pool).await;
-        match user {
-            Ok(row) => Ok(User {
-                id: row.id,
-                username,
-                discriminator,
-                email,
-                created_at: row.created_at,
-            }),
-            Err(err) => {
-                if let Some(database_err) = err.into_database_error()
-                    && database_err.is_unique_violation()
-                {
-                    Err(AuthError::Conflict)
-                } else {
-                    Err(AuthError::Internal)
+        ).fetch_one(&self.pool).await
+        .map_err(|err| {
+            match err {
+                sqlx::Error::Database(database_err) if database_err.is_unique_violation() => {
+                    AuthError::Conflict
                 }
+                _ => AuthError::Internal,
             }
-        }
+        })?;
+        Ok(User {
+            id: row.id,
+            username,
+            discriminator,
+            email,
+            created_at: row.created_at,
+        })
     }
 
     pub(crate) async fn find_for_login(
@@ -74,9 +80,9 @@ impl UserRepository {
         sqlx::query_as!(
             UserLoginRow,
             r#"
-            SELECT id, password_hash
-            FROM users
-            WHERE email = $1
+                SELECT id, password_hash
+                FROM users
+                WHERE email = $1
             "#,
             email.get(),
         )

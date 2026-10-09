@@ -12,7 +12,7 @@ pub(crate) enum PasswordError {
 pub(crate) struct Password(String);
 impl Password {
     pub(crate) fn new(password: String) -> Option<Self> {
-        const MIN_LEN: usize = 12;
+        const MIN_LEN: usize = 4;
         const MAX_LEN: usize = 128;
 
         let len = password.chars().count();

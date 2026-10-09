@@ -1,0 +1,1 @@
+ALTER TABLE items ADD COLUMN owner UUID NOT NULL REFERENCES users(id);

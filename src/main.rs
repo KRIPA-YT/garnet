@@ -1,6 +1,8 @@
 pub mod auth;
 pub mod db;
 pub mod error;
+pub mod items;
+pub mod lists;
 pub mod model;
 pub mod openapi;
 pub mod routes;
@@ -13,12 +15,13 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use sqlx::PgPool;
 use utoipa::OpenApi as _;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     auth::service::AuthService,
+    items::repository::ItemRepository,
+    lists::repository::ListRepository,
     openapi::ApiDoc,
     routes::{
         auth::{login, logout, refresh, register},
@@ -30,8 +33,9 @@ use crate::{
 pub(crate) type AppState = Arc<InnerAppState>;
 
 pub(crate) struct InnerAppState {
-    pub pool: PgPool,
     pub auth: AuthService,
+    pub items: ItemRepository,
+    pub lists: ListRepository,
 }
 
 #[tokio::main]
@@ -39,21 +43,32 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     println!("Connecting to database...");
+
     #[allow(clippy::expect_used)]
-    let db_url = std::env::var("DATABASE_URL").expect("Need to set DATABASE_URL env variable");
+    let db_url =
+        std::env::var("DATABASE_URL").expect("Need to set MIGRATOR_DATABASE_URL env variable");
+    #[allow(clippy::expect_used)]
+    let migrator_pool = db::establish_connection(&db_url)
+        .await
+        .expect("Could not connect to database");
+    #[allow(clippy::expect_used)]
+    sqlx::migrate!("./migrations")
+        .run(&migrator_pool)
+        .await
+        .expect("Could not run migration!");
+    drop(migrator_pool);
+
+    #[allow(clippy::expect_used)]
+    let db_url = std::env::var("APP_DATABASE_URL").expect("Need to set DATABASE_URL env variable");
     #[allow(clippy::expect_used)]
     let pool = db::establish_connection(&db_url)
         .await
         .expect("Could not connect to database");
     let auth = AuthService::new(pool.clone());
-    let inner = InnerAppState { pool, auth };
+    let items = ItemRepository::new(pool.clone());
+    let lists = ListRepository::new(pool.clone());
+    let inner = InnerAppState { auth, items, lists };
     let app_state = Arc::new(inner);
-
-    #[allow(clippy::expect_used)]
-    sqlx::migrate!("./migrations")
-        .run(&app_state.pool)
-        .await
-        .expect("Could not run migration!");
 
     println!("Connected!");
     println!("Starting webapp...");

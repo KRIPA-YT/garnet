@@ -71,10 +71,12 @@ impl AuthService {
         self.sessions.refresh(user_id, refresh_token)
     }
 
-    /*pub(crate) async fn authenticate_access_token(
+    pub(crate) fn authenticate_access<E: Expiry>(
         &self,
-        access_token: &str,
-    ) -> Result<AuthenticatedUser, AuthError>{todo!();}*/
+        access_token: &Token<E>,
+    ) -> impl Future<Output = Result<Uuid, AuthError>> {
+        self.sessions.authenticate_access(access_token)
+    }
 
     pub(crate) fn logout<E: Expiry>(
         &self,

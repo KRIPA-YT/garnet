@@ -42,13 +42,13 @@ impl SessionRepository {
         let refresh = Token::random();
         let row = query!(
             r#"
-            INSERT INTO sessions (user_id, title,
-            access_token_hash, access_expires_at,
-            refresh_token_hash, refresh_expires_at, absolute_expires_at,
-            revoked_at) VALUES ($1, $2, $3, now() + $4, $5, now() + $6, now() + $7, NULL) RETURNING
-            id, title, user_id, 
-            access_expires_at, refresh_expires_at, absolute_expires_at,
-            created_at, revoked_at;
+                INSERT INTO sessions (user_id, title,
+                access_token_hash, access_expires_at,
+                refresh_token_hash, refresh_expires_at, absolute_expires_at,
+                revoked_at) VALUES ($1, $2, $3, now() + $4, $5, now() + $6, now() + $7, NULL) RETURNING
+                id, title, user_id, 
+                access_expires_at, refresh_expires_at, absolute_expires_at,
+                created_at, revoked_at;
             "#,
             user_id,
             title,
@@ -82,25 +82,25 @@ impl SessionRepository {
         let new_refresh = Token::random();
         let row = query!(
             r#"
-            UPDATE sessions
-            SET
-                access_token_hash = $1,
-                access_expires_at = LEAST(
-                    now() + INTERVAL '1 hour',
-                    absolute_expires_at
-                ),
-                refresh_token_hash = $2,
-                refresh_expires_at = LEAST(
-                    now() + INTERVAL '30 days',
-                    absolute_expires_at
-                )
-            WHERE user_id = $3
-            AND refresh_token_hash = $4
-            AND refresh_expires_at > now()
-            AND absolute_expires_at > now()
-            AND revoked_at IS NULL RETURNING
-            access_expires_at, refresh_expires_at
-        "#,
+                UPDATE sessions
+                SET
+                    access_token_hash = $1,
+                    access_expires_at = LEAST(
+                        now() + INTERVAL '1 hour',
+                        absolute_expires_at
+                    ),
+                    refresh_token_hash = $2,
+                    refresh_expires_at = LEAST(
+                        now() + INTERVAL '30 days',
+                        absolute_expires_at
+                    )
+                WHERE user_id = $3
+                AND refresh_token_hash = $4
+                AND refresh_expires_at > now()
+                AND absolute_expires_at > now()
+                AND revoked_at IS NULL RETURNING
+                access_expires_at, refresh_expires_at
+            "#,
             new_access.hash(),
             new_refresh.hash(),
             user_id,
@@ -121,16 +121,35 @@ impl SessionRepository {
     ) -> Result<(), AuthError> {
         query!(
             r#"
-            UPDATE sessions
-            SET
-            revoked_at = now()
-            WHERE refresh_token_hash = $1
-        "#,
+                UPDATE sessions
+                SET
+                revoked_at = now()
+                WHERE refresh_token_hash = $1
+            "#,
             refresh_token.hash(),
         )
         .fetch_optional(&self.pool)
         .await?
         .ok_or(AuthError::InvalidCredentials)?;
         Ok(())
+    }
+
+    pub(crate) async fn authenticate_access<E: Expiry>(
+        &self,
+        access_token: &Token<E>,
+    ) -> Result<Uuid, AuthError> {
+        let row = query!(
+            r#"
+                SELECT user_id 
+                FROM sessions 
+                WHERE access_token_hash = $1 
+                AND revoked_at IS NULL
+            "#,
+            access_token.hash()
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(AuthError::InvalidCredentials)?;
+        Ok(row.user_id)
     }
 }

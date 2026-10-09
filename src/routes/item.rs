@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    db::{DeleteResult, ItemInsertResult, ItemUpdateResult, PatchItemParams},
+    auth::extractor::AuthenticatedUser,
+    items::repository::{DeleteResult, ItemInsertResult, ItemUpdateResult, PatchItemParams},
     model::Item,
 };
 
@@ -18,6 +19,9 @@ use crate::{
     get,
     path = "/api/item/{id}",
     tag = "Items",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID of the item")
     ),
@@ -29,10 +33,11 @@ use crate::{
 )]
 
 pub(crate) async fn get_item(
-    Path(id): Path<Uuid>,
+    Path(item_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let item = crate::db::get_item(&state.pool, id).await;
+    let item = state.items.get_item(&item_id, &user_id).await;
     item.map_or_else(
         |_| StatusCode::NOT_FOUND.into_response(),
         |item| (StatusCode::OK, Json(item)).into_response(),
@@ -50,6 +55,9 @@ pub(crate) struct CreateItemParams {
     put,
     path = "/api/item/{id}",
     tag = "Items",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID for the new item"),
     ),
@@ -63,18 +71,19 @@ pub(crate) struct CreateItemParams {
 )]
 
 pub(crate) async fn create_item(
-    Path(id): Path<Uuid>,
+    Path(item_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
     Json(item): Json<CreateItemParams>,
 ) -> impl IntoResponse {
     let item = Item {
-        id,
+        id: item_id,
         list_id: item.list_id,
         title: item.title,
         pinned: false,
         checked: false,
     };
-    let res = crate::db::insert_item(&state.pool, item).await;
+    let res = state.items.insert_item(item, &user_id).await;
     match res {
         ItemInsertResult::Inserted => StatusCode::CREATED,
         ItemInsertResult::Duplicate => StatusCode::NO_CONTENT,
@@ -87,6 +96,9 @@ pub(crate) async fn create_item(
     delete,
     path = "/api/item/{id}",
     tag = "Items",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID of the item to delete")
     ),
@@ -98,10 +110,11 @@ pub(crate) async fn create_item(
 )]
 
 pub(crate) async fn delete_item(
-    Path(id): Path<Uuid>,
+    Path(item_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let res = crate::db::delete_item(&state.pool, id).await;
+    let res = state.items.delete_item(&item_id, &user_id).await;
     match res {
         DeleteResult::Deleted => StatusCode::NO_CONTENT,
         DeleteResult::NotFound => StatusCode::NOT_FOUND,
@@ -113,6 +126,9 @@ pub(crate) async fn delete_item(
     patch,
     path = "/api/item/{id}",
     tag = "Items",
+    security(
+        ("bearer_auth" = [])
+    ),
     params(
         ("id" = Uuid, Path, description = "UUID of the item to update"),
     ),
@@ -126,11 +142,12 @@ pub(crate) async fn delete_item(
 )]
 
 pub(crate) async fn patch_item(
-    Path(id): Path<Uuid>,
+    Path(item_id): Path<Uuid>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
     State(state): State<AppState>,
     Json(item): Json<PatchItemParams>,
 ) -> impl IntoResponse {
-    let res = crate::db::update_item(&state.pool, id, item).await;
+    let res = state.items.update_item(&item_id, &user_id, item).await;
     match res {
         ItemUpdateResult::Updated => StatusCode::NO_CONTENT,
         ItemUpdateResult::NotFound => StatusCode::NOT_FOUND,
