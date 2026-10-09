@@ -8,8 +8,8 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    app::AppState, auth::extractor::AuthenticatedUser, items::repository::PatchItemParams,
-    model::Item,
+    app::AppState, auth::extractor::AuthenticatedUser, items::model::Item,
+    items::repository::PatchItemParams,
 };
 
 #[utoipa::path(

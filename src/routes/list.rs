@@ -10,8 +10,8 @@ use uuid::Uuid;
 use crate::{
     app::AppState,
     auth::extractor::AuthenticatedUser,
-    lists::repository::PatchListParams,
-    model::{Item, List},
+    items::model::Item,
+    lists::{model::List, repository::PatchListParams},
 };
 
 #[utoipa::path(

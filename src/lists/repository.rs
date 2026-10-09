@@ -3,7 +3,9 @@ use sqlx::{PgPool, query, query_as};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{error::repository::RepositoryError, model::List, users::repository::UserTxExt as _};
+use crate::{
+    error::repository::RepositoryError, lists::model::List, users::repository::UserTxExt as _,
+};
 
 pub(crate) struct ListRepository {
     pool: PgPool,

@@ -5,7 +5,6 @@ pub mod db;
 pub mod error;
 pub mod items;
 pub mod lists;
-pub mod model;
 pub mod openapi;
 pub mod routes;
 pub mod sessions;
