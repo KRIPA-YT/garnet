@@ -1,5 +1,5 @@
 use chrono::Duration;
-use sqlx::{PgPool, postgres::types::PgInterval, query};
+use sqlx::{PgPool, postgres::types::PgInterval, query, query_as};
 use uuid::Uuid;
 
 use crate::{
@@ -64,7 +64,7 @@ impl SessionRepository {
             id: row.id,
             title: row.title,
             user_id: row.user_id,
-            absolute_expires_at: row.absolute_expires_at,
+            expires_at: row.absolute_expires_at,
             created_at: row.created_at,
             revoked_at: row.revoked_at,
         };
@@ -151,5 +151,24 @@ impl SessionRepository {
         .await?
         .ok_or(AuthError::InvalidCredentials)?;
         Ok(row.user_id)
+    }
+
+    pub(crate) async fn get<E: Expiry>(
+        &self,
+        access_token: &Token<E>,
+    ) -> Result<Session, AuthError> {
+        query_as!(
+            Session,
+            r#"
+                SELECT id, user_id, title, absolute_expires_at AS expires_at, created_at, revoked_at
+                FROM sessions
+                WHERE access_token_hash = $1
+                AND revoked_at IS NULL
+            "#,
+            access_token.hash()
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(AuthError::InvalidCredentials)
     }
 }

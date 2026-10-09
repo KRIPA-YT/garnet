@@ -14,7 +14,7 @@ use crate::{
     lists::repository::ListRepository,
     openapi::ApiDoc,
     routes::{
-        auth::{login, logout, refresh, register},
+        auth::{get_session, login, logout, refresh, register},
         item::{create_item, delete_item, get_item, patch_item},
         list::{create_list, delete_list, get_list, get_lists, patch_list},
     },
@@ -59,6 +59,7 @@ pub fn create_app(state: AppState) -> Router {
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
         .route("/auth/refresh", post(refresh))
+        .route("/auth/session", get(get_session))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state)
 }

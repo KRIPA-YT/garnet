@@ -23,6 +23,7 @@ use crate::{
         token::{Token, TokenPair},
     },
     error::auth::AuthError,
+    sessions::model::Session,
     users::model::{Discriminator, Email, User, Username},
 };
 
@@ -204,4 +205,29 @@ pub(crate) async fn logout(
         })?;
 
     Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/session",
+    tag = "Auth",
+    security(
+        ("bearer_auth" = [])
+    ),
+    responses(
+        (status = 200, description = "Current session", body = Session),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub(crate) async fn get_session(
+    State(state): State<AppState>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+) -> impl IntoResponse {
+    state
+        .auth
+        .sessions()
+        .get(&Token::unlimited(authorization.token().to_owned()))
+        .await
+        .map(Json)
 }
